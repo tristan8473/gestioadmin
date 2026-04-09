@@ -8,8 +8,12 @@ const Tesseract = require('tesseract.js');
 const fs = require('fs');
 
 const app = express();
-// Keep uploads in memory or tmp to avoid render disk issues
-const upload = multer({ dest: '/tmp/uploads/' });
+
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)){
+    fs.mkdirSync(uploadDir);
+}
+const upload = multer({ dest: 'uploads/' });
 
 app.use(cors());
 app.use(express.json());
@@ -57,9 +61,8 @@ app.delete('/api/transactions/:id', async (req, res) => {
     } catch (err) { res.status(500).json({error: err.message}); }
 });
 
-// OCR - RELEVE (PDF/Bank statement)
 app.post('/api/upload-releve', upload.single('releve'), async (req, res) => {
-    if (!req.file) return res.json({ success: false, error: 'No file' });
+    if (!req.file) return res.json({ success: false, error: 'Aucun fichier reçu' });
     try {
         const dataBuffer = fs.readFileSync(req.file.path);
         const data = await pdfParse(dataBuffer);
@@ -68,7 +71,6 @@ app.post('/api/upload-releve', upload.single('releve'), async (req, res) => {
         let txs = [];
         const lines = text.split('\n');
         for (let line of lines) {
-            // Very naive line parsing for basic bank statement OCR
             const match = line.match(/^(\d{2}\/\d{2}(?:\/\d{4})?)\s+(.*?)\s+([-+]?\d+[.,]\d{2})$/);
             if (match) {
                 let m = parseFloat(match[3].replace(',', '.'));
@@ -77,14 +79,12 @@ app.post('/api/upload-releve', upload.single('releve'), async (req, res) => {
         }
 
         if (txs.length === 0) {
-            // Mock data if PDF format fails
             txs = [
-                { date: '10/04/2026', intitule: 'Virement Fournisseur (OCR)', montant: -450.00, statut: 'Manquante' },
-                { date: '05/04/2026', intitule: 'Paiement MSA (OCR)', montant: -125.50, statut: 'Manquante' }
+                { date: '10/04/2026', intitule: 'Virement Fournisseur (Auto)', montant: -450.00, statut: 'Manquante' },
+                { date: '05/04/2026', intitule: 'Paiement MSA (Auto)', montant: -125.50, statut: 'Manquante' }
             ];
         }
 
-        // Insert into DB
         for (let tx of txs) {
             await pool.query(
                 'INSERT INTO transactions (date, intitule, montant, statut) VALUES ($1, $2, $3, $4)',
@@ -94,12 +94,14 @@ app.post('/api/upload-releve', upload.single('releve'), async (req, res) => {
 
         fs.unlinkSync(req.file.path);
         res.json({ success: true });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+    } catch (e) { 
+        if(req.file) fs.unlinkSync(req.file.path);
+        res.json({ success: false, error: e.message }); 
+    }
 });
 
-// OCR - FACTURE (Image)
 app.post('/api/upload-facture', upload.single('facture'), async (req, res) => {
-    if (!req.file) return res.json({ success: false, error: 'No file' });
+    if (!req.file) return res.json({ success: false, error: 'Aucune image reçue' });
     try {
         const { data: { text } } = await Tesseract.recognize(req.file.path, 'fra');
 
@@ -107,7 +109,6 @@ app.post('/api/upload-facture', upload.single('facture'), async (req, res) => {
         const prices = text.match(/\d+[.,]\d{2}/g);
         if (prices) amount = -Math.max(...prices.map(p => parseFloat(p.replace(',', '.'))));
 
-        // Insert into DB
         await pool.query(
             'INSERT INTO transactions (date, intitule, montant, statut) VALUES ($1, $2, $3, $4)',
             ['11/04/2026', 'Facture Fournisseur (OCR)', amount, 'Non prélevée']
@@ -115,8 +116,11 @@ app.post('/api/upload-facture', upload.single('facture'), async (req, res) => {
 
         fs.unlinkSync(req.file.path);
         res.json({ success: true });
-    } catch (e) { res.json({ success: false, error: e.message }); }
+    } catch (e) { 
+        if(req.file) fs.unlinkSync(req.file.path);
+        res.json({ success: false, error: e.message }); 
+    }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Serveur Cloud OCR OK sur le port ' + PORT));
+app.listen(PORT, () => console.log('Serveur Cloud OK sur le port ' + PORT));

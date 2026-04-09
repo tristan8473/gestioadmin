@@ -276,7 +276,7 @@
                         </tr>
                     </thead>
                     <tbody id="transactions-body">
-                        <!-- Chargement depuis PostgreSQL... -->
+                        <!-- Chargé depuis PostgreSQL -->
                     </tbody>
                 </table>
                 </div>
@@ -1357,11 +1357,10 @@
                     loaderFacture.style.display = 'none';
                     if(res.success) {
                         window.loadTransactions();
-                        setTimeout(() => {
-                           if(window.checkAutoMatch) window.checkAutoMatch();
-                        }, 500);
+                    } else {
+                        alert('Erreur OCR Facture: ' + res.error);
                     }
-                }).catch(err => { loaderFacture.style.display = 'none'; alert('Erreur OCR Facture'); });
+                }).catch(err => { loaderFacture.style.display = 'none'; alert('Erreur connexion au serveur OCR'); });
             }
 
             const fileReleve = document.getElementById('file-releve');
@@ -1402,12 +1401,11 @@
                     btnReleve.innerText = origText;
                     btnReleve.disabled = false;
                     if (data.success) {
-                        window.loadTransactions(); // Recharge la base de données
-                        setTimeout(() => {
-                           if(window.checkAutoMatch) window.checkAutoMatch();
-                        }, 500);
+                        window.loadTransactions();
+                    } else {
+                        alert('Erreur OCR: ' + data.error);
                     }
-                }).catch(err => { btnReleve.innerText = origText; btnReleve.disabled = false; alert('Erreur OCR'); });
+                }).catch(err => { btnReleve.innerText = origText; btnReleve.disabled = false; alert('Erreur connexion au serveur OCR'); });
 
                         fileReleve.value = '';
                         window.checkAutoMatch();
@@ -1554,31 +1552,32 @@
             setTimeout(initCharts, 500);
 </script>
 
+    <script>
     // --- CLOUD SYNC LOGIC ---
     window.loadTransactions = async function() {
         try {
             const res = await fetch('/api/transactions');
             const data = await res.json();
             const tbody = document.getElementById('transactions-body');
+            if(!tbody) return;
             tbody.innerHTML = '';
 
             data.forEach(tx => {
                 const tr = document.createElement('tr');
                 tr.setAttribute('data-id', tx.id);
-                // On check if tx.statut includes "Manquante" or "Non prélevée"
                 if(tx.statut && tx.statut.includes('En retard')) tr.style.backgroundColor = '#fef2f2';
 
                 let statutHtml = '';
                 if(tx.statut === 'Validée') statutHtml = '<span class="badge badge-success">✅ Validée</span>';
                 else if(tx.statut === 'Manquante') statutHtml = '<span class="badge badge-danger">🚨 Manquante</span>';
                 else if(tx.statut === 'Non prélevée') statutHtml = '<span class="badge badge-warning">⏳ Non prélevée</span>';
-                else statutHtml = `<span class="badge badge-warning">${tx.statut}</span>`;
+                else statutHtml = `<span class="badge badge-warning">${tx.statut || 'En attente'}</span>`;
 
                 tr.innerHTML = `
                     <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
-                    <td>${tx.date}</td>
-                    <td><strong>${tx.intitule}</strong></td>
-                    <td style="color: ${tx.montant < 0 ? '#ef4444' : '#10b981'}; font-weight: 600;">${window.formatMontant(tx.montant)}</td>
+                    <td>${tx.date || ''}</td>
+                    <td><strong>${tx.intitule || ''}</strong></td>
+                    <td style="color: ${tx.montant < 0 ? '#ef4444' : '#10b981'}; font-weight: 600;">${window.formatMontant ? window.formatMontant(tx.montant) : tx.montant + ' €'}</td>
                     <td>${statutHtml}</td>
                     <td style="display:flex; gap:5px; align-items: center;">
                         <button onclick="document.getElementById('file-facture').click();">Joindre 📸</button>
@@ -1588,6 +1587,7 @@
                 `;
                 tbody.appendChild(tr);
             });
+            if(window.refreshDashboard) window.refreshDashboard();
         } catch (e) { console.error('Sync error:', e); }
     };
 
@@ -1607,14 +1607,15 @@
             try {
                 await fetch('/api/transactions/' + id, { method: 'DELETE' });
                 const tr = btn.closest('tr');
-                tr.remove();
+                if(tr) tr.remove();
+                if(window.refreshDashboard) window.refreshDashboard();
             } catch (e) { console.error('Delete error:', e); }
         }
     };
 
-    // Load on start
     document.addEventListener('DOMContentLoaded', () => {
         setTimeout(window.loadTransactions, 500);
     });
+    </script>
 
 </body>
