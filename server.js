@@ -1,66 +1,74 @@
-
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'))); // Serve HTML
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Connect to SQLite Database
-const db = new sqlite3.Database('./gestioadmin.db', (err) => {
-    if (err) console.error(err.message);
-    else console.log('Connected to the SQLite database.');
+// Connexion à la base de données PostgreSQL de Render
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false // Obligatoire pour Render
+    }
 });
 
-// Initialize Tables
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT,
-        intitule TEXT,
-        categorie TEXT,
-        montant REAL,
-        montant_ht REAL,
-        tva REAL,
-        taux_tva REAL,
-        mois TEXT,
-        annee TEXT
-    )`);
-    // More tables can be added here for Planning, Documents, etc.
+// Création automatique de la table au démarrage
+pool.query(`CREATE TABLE IF NOT EXISTS transactions (
+    id SERIAL PRIMARY KEY,
+    date TEXT,
+    intitule TEXT,
+    categorie TEXT,
+    montant REAL,
+    montant_ht REAL,
+    tva REAL,
+    taux_tva REAL,
+    mois TEXT,
+    annee TEXT
+)`, (err, res) => {
+    if (err) console.error('Erreur de création de table:', err.stack);
+    else console.log('Base de données PostgreSQL prête !');
 });
 
-// Get all transactions
-app.get('/api/transactions', (req, res) => {
-    db.all(`SELECT * FROM transactions ORDER BY date DESC`, [], (err, rows) => {
-        if (err) return res.status(400).json({error: err.message});
-        res.json(rows);
-    });
+// 1. Lire toutes les transactions
+app.get('/api/transactions', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT * FROM transactions ORDER BY date DESC`);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(400).json({error: err.message});
+    }
 });
 
-// Add a transaction
-app.post('/api/transactions', (req, res) => {
+// 2. Ajouter une transaction
+app.post('/api/transactions', async (req, res) => {
     const { date, intitule, categorie, montant, montant_ht, tva, taux_tva, mois, annee } = req.body;
-    db.run(`INSERT INTO transactions (date, intitule, categorie, montant, montant_ht, tva, taux_tva, mois, annee) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [date, intitule, categorie, montant, montant_ht, tva, taux_tva, mois, annee], 
-        function(err) {
-            if (err) return res.status(400).json({error: err.message});
-            res.json({ id: this.lastID });
-    });
+    try {
+        const result = await pool.query(
+            `INSERT INTO transactions (date, intitule, categorie, montant, montant_ht, tva, taux_tva, mois, annee) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+            [date, intitule, categorie, montant, montant_ht, tva, taux_tva, mois, annee]
+        );
+        res.json({ id: result.rows[0].id });
+    } catch (err) {
+        res.status(400).json({error: err.message});
+    }
 });
 
-// Delete a transaction
-app.delete('/api/transactions/:id', (req, res) => {
-    db.run(`DELETE FROM transactions WHERE id = ?`, req.params.id, function(err) {
-        if (err) return res.status(400).json({error: err.message});
-        res.json({ deleted: this.changes });
-    });
+// 3. Supprimer une transaction
+app.delete('/api/transactions/:id', async (req, res) => {
+    try {
+        const result = await pool.query(`DELETE FROM transactions WHERE id = $1`, [req.params.id]);
+        res.json({ deleted: result.rowCount });
+    } catch (err) {
+        res.status(400).json({error: err.message});
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Serveur démarré sur le port ${PORT}`);
 });
