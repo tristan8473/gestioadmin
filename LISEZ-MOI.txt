@@ -1,0 +1,11 @@
+
+# GestioAdmin - Ferme Chabran (Node.js + SQLite)
+
+Voici les instructions pour lancer votre application complète avec sauvegarde :
+
+1. Installez Node.js sur votre ordinateur (si ce n'est pas déjà fait).
+2. Ouvrez un terminal dans ce dossier et tapez : `npm install`
+3. Lancez le serveur avec : `npm start`
+4. Ouvrez votre navigateur et allez sur : `http://localhost:3000`
+
+La base de données SQLite se créera automatiquement dans le fichier `gestioadmin.db`.
