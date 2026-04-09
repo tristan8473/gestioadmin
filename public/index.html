@@ -276,46 +276,7 @@
                         </tr>
                     </thead>
                     <tbody id="transactions-body">
-                        <!-- Ligne en retard -->
-                        <tr style="background-color: #fef2f2;">
-                            <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
-                            <td>28/03/2026</td>
-                            <td><strong>PRLV FOURNISSEUR AGRICOLE</strong></td>
-                            <td style="color: #ef4444; font-weight: 600;">-1 250,00 €</td>
-                            <td><span class="badge badge-danger">🚨 Manquante (+7j)</span></td>
-                            <td style="display:flex; gap:5px; align-items: center;"><button onclick="this.parentElement.previousElementSibling.innerHTML = '<span class=\'badge badge-success\'>✅ Associée</span>'; this.parentElement.parentElement.style.backgroundColor='white';">Joindre 📸</button><button class="secondary edit-btn" style="padding: 6px 10px;" onclick="openAdminModal(this)">✏️</button>
-                                        <button class="danger" style="padding: 6px 10px;" onclick="deleteRow(this)">🗑️</button></td>
-                        </tr>
-                        <!-- Ligne en retard -->
-                        <tr style="background-color: #fef2f2;">
-                            <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
-                            <td>30/03/2026</td>
-                            <td><strong>PAIEMENT CB STATION ESSENCE</strong></td>
-                            <td style="color: #ef4444; font-weight: 600;">-85,50 €</td>
-                            <td><span class="badge badge-danger">🚨 Manquante (+7j)</span></td>
-                            <td style="display:flex; gap:5px; align-items: center;"><button onclick="this.parentElement.previousElementSibling.innerHTML = '<span class=\'badge badge-success\'>✅ Associée</span>'; this.parentElement.parentElement.style.backgroundColor='white';">Joindre 📸</button><button class="secondary edit-btn" style="padding: 6px 10px;" onclick="openAdminModal(this)">✏️</button>
-                                        <button class="danger" style="padding: 6px 10px;" onclick="deleteRow(this)">🗑️</button></td>
-                        </tr>
-                        <!-- Ligne dans les temps -->
-                        <tr>
-                            <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
-                            <td>04/04/2026</td>
-                            <td><strong>PRLV ASSURANCE TRACTEUR</strong></td>
-                            <td style="color: #ef4444; font-weight: 600;">-145,00 €</td>
-                            <td><span class="badge badge-warning">En attente (3j)</span></td>
-                            <td style="display:flex; gap:5px; align-items: center;"><button onclick="this.parentElement.previousElementSibling.innerHTML = '<span class=\'badge badge-success\'>✅ Associée</span>'">Joindre 📸</button><button class="secondary" style="padding: 6px 10px;" onclick="openEditModal(this)">✏️</button>
-                                        <button class="danger" style="padding: 6px 10px;" onclick="deleteRow(this)">🗑️</button></td>
-                        </tr>
-                        <!-- Ligne OK -->
-                        <tr>
-                            <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
-                            <td>06/04/2026</td>
-                            <td><strong>ACHAT MATERIEL VITI</strong></td>
-                            <td style="color: #ef4444; font-weight: 600;">-320,00 €</td>
-                            <td><span class="badge badge-success">✅ facture_viti.pdf</span></td>
-                            <td style="display:flex; gap:5px; align-items: center;"><button class="secondary" disabled>Validé</button><button class="secondary" style="padding: 6px 10px;" onclick="openEditModal(this)">✏️</button>
-                                        <button class="danger" style="padding: 6px 10px;" onclick="deleteRow(this)">🗑️</button></td>
-                        </tr>
+                        <!-- Chargement depuis PostgreSQL... -->
                     </tbody>
                 </table>
                 </div>
@@ -1390,36 +1351,17 @@
             }
 
             function sendFactureToServer(formData, photoDataUrl) {
-                fetch('http://localhost:3000/api/upload-facture', { method: 'POST', body: formData })
+                fetch('/api/upload-facture', { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(res => {
                     loaderFacture.style.display = 'none';
                     if(res.success) {
-                        const tr = document.createElement('tr');
-                        tr.style.backgroundColor = '#f8fafc';
-                        tr.setAttribute('data-photo', photoDataUrl);
-                        tr.innerHTML = `
-                            <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
-                                    <td>${res.data.date}</td>
-                            <td><strong>${res.data.libelle}</strong></td>
-                            <td><span style="color: #ef4444; font-weight: 600;">${window.formatMontant(res.data.montant)}</span></td>
-                            <td><span class="badge badge-success" style="background:#dbeafe; color:#0369a1; cursor:pointer;" onclick="viewFacture(this)">👁️ ${res.data.fileName}</span><br><span style="font-size:11px; color:#64748b;">(Non prélevée)</span></td>
-                            <td style="display:flex; gap:5px; align-items:center;">
-                                <button class="secondary" disabled>Enregistré</button>
-                                <button class="secondary edit-btn" style="padding: 6px 10px;" onclick="openEditModal(this)">✏️</button>
-                                <button class="danger" style="padding: 6px 10px;" onclick="deleteRow(this)">🗑️</button>
-                            </td>
-                        `;
-                        transactionsBody.insertBefore(tr, transactionsBody.firstChild);
-                        fileFacture.value = '';
-
-                        window.checkAutoMatch();
-
-                        if (document.body.contains(tr)) {
-                            window.openEditModal(tr.querySelector('.edit-btn'));
-                        }
+                        window.loadTransactions();
+                        setTimeout(() => {
+                           if(window.checkAutoMatch) window.checkAutoMatch();
+                        }, 500);
                     }
-                }).catch(err => { loaderFacture.style.display = 'none'; alert('Erreur serveur Node.js'); });
+                }).catch(err => { loaderFacture.style.display = 'none'; alert('Erreur OCR Facture'); });
             }
 
             const fileReleve = document.getElementById('file-releve');
@@ -1454,31 +1396,18 @@
             }
 
             function sendReleveToServer(formData, photoDataUrl, origText) {
-                fetch('http://localhost:3000/api/upload-releve', { method: 'POST', body: formData })
+                fetch('/api/upload-releve', { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(data => {
                     btnReleve.innerText = origText;
                     btnReleve.disabled = false;
-                    if (data.success && data.transactions.length > 0) {
-                        let firstBtn = null;
-                        data.transactions.reverse().forEach((ligne) => {
-                            const tr = document.createElement('tr');
-                            tr.style.backgroundColor = '#eff6ff';
-                            tr.innerHTML = `
-                                <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
-                                            <td>${ligne.date}</td>
-                                <td><strong>${ligne.libelle} (OCR)</strong></td>
-                                <td><span style="color: #ef4444; font-weight: 600;">${window.formatMontant(ligne.montant)}</span></td>
-                                <td><span class="badge badge-danger">🚨 Manquante</span></td>
-                                <td style="display:flex; gap:5px; align-items: center;">
-                                    <button onclick="document.getElementById('file-facture').click();">Joindre 📸</button>
-                                    <button class="secondary edit-btn" style="padding: 6px 10px;" onclick="openEditModal(this)">✏️</button>
-                                    <button class="danger" style="padding: 6px 10px;" onclick="deleteRow(this)">🗑️</button>
-                                </td>
-                            `;
-                            transactionsBody.insertBefore(tr, transactionsBody.firstChild);
-                            if(!firstBtn) firstBtn = tr.querySelector('.edit-btn');
-                        });
+                    if (data.success) {
+                        window.loadTransactions(); // Recharge la base de données
+                        setTimeout(() => {
+                           if(window.checkAutoMatch) window.checkAutoMatch();
+                        }, 500);
+                    }
+                }).catch(err => { btnReleve.innerText = origText; btnReleve.disabled = false; alert('Erreur OCR'); });
 
                         fileReleve.value = '';
                         window.checkAutoMatch();
@@ -1624,4 +1553,68 @@
             // Initialization trigger
             setTimeout(initCharts, 500);
 </script>
+
+    // --- CLOUD SYNC LOGIC ---
+    window.loadTransactions = async function() {
+        try {
+            const res = await fetch('/api/transactions');
+            const data = await res.json();
+            const tbody = document.getElementById('transactions-body');
+            tbody.innerHTML = '';
+
+            data.forEach(tx => {
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-id', tx.id);
+                // On check if tx.statut includes "Manquante" or "Non prélevée"
+                if(tx.statut && tx.statut.includes('En retard')) tr.style.backgroundColor = '#fef2f2';
+
+                let statutHtml = '';
+                if(tx.statut === 'Validée') statutHtml = '<span class="badge badge-success">✅ Validée</span>';
+                else if(tx.statut === 'Manquante') statutHtml = '<span class="badge badge-danger">🚨 Manquante</span>';
+                else if(tx.statut === 'Non prélevée') statutHtml = '<span class="badge badge-warning">⏳ Non prélevée</span>';
+                else statutHtml = `<span class="badge badge-warning">${tx.statut}</span>`;
+
+                tr.innerHTML = `
+                    <td style="text-align: center;"><input type="checkbox" class="row-checkbox"></td>
+                    <td>${tx.date}</td>
+                    <td><strong>${tx.intitule}</strong></td>
+                    <td style="color: ${tx.montant < 0 ? '#ef4444' : '#10b981'}; font-weight: 600;">${window.formatMontant(tx.montant)}</td>
+                    <td>${statutHtml}</td>
+                    <td style="display:flex; gap:5px; align-items: center;">
+                        <button onclick="document.getElementById('file-facture').click();">Joindre 📸</button>
+                        <button class="secondary edit-btn" style="padding: 6px 10px;" onclick="openEditModal(this)">✏️</button>
+                        <button class="danger" style="padding: 6px 10px;" onclick="deleteRowCloud(this, ${tx.id})">🗑️</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (e) { console.error('Sync error:', e); }
+    };
+
+    window.saveTransactionCloud = async function(tx) {
+        try {
+            await fetch('/api/transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(tx)
+            });
+            window.loadTransactions();
+        } catch (e) { console.error('Save error:', e); }
+    };
+
+    window.deleteRowCloud = async function(btn, id) {
+        if(confirm('Supprimer définitivement cette ligne du serveur ?')) {
+            try {
+                await fetch('/api/transactions/' + id, { method: 'DELETE' });
+                const tr = btn.closest('tr');
+                tr.remove();
+            } catch (e) { console.error('Delete error:', e); }
+        }
+    };
+
+    // Load on start
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(window.loadTransactions, 500);
+    });
+
 </body>
